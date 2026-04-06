@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { api } from "@shared/routes";
-import { useAnalyze, type AnalyzeResponse, type AnalyzeInput } from "@/hooks/use-seo";
+import { z } from "zod";
+import { useAnalyze, type AnalyzeResponse } from "@/hooks/use-seo";
 import { Header } from "@/components/layout/Header";
 import { GooglePreview } from "@/components/previews/GooglePreview";
 import { SocialPreview } from "@/components/previews/SocialPreview";
@@ -10,25 +10,45 @@ import { IssueList } from "@/components/results/IssueList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { Search, ArrowRight, Loader2, Sparkles, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+
+const formSchema = z.object({
+  url: z.string().min(1, "Please enter a URL").transform((val) => {
+    val = val.trim();
+    if (!/^https?:\/\//i.test(val)) {
+      return "https://" + val;
+    }
+    return val;
+  }),
+});
+
+type FormInput = z.input<typeof formSchema>;
+
+function normalizeUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return "https://" + trimmed;
+  }
+  return trimmed;
+}
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const { mutate, isPending } = useAnalyze();
 
-  const form = useForm<AnalyzeInput>({
-    resolver: zodResolver(api.analyze.input),
+  const form = useForm<FormInput>({
+    resolver: zodResolver(formSchema),
     defaultValues: { url: "" }
   });
 
-  const onSubmit = (data: AnalyzeInput) => {
-    // Reset previous result to show loading state effectively or just keep it
+  const onSubmit = (data: FormInput) => {
     setResult(null);
-    mutate(data, {
+    const normalizedUrl = normalizeUrl(data.url);
+    mutate({ url: normalizedUrl }, {
       onSuccess: (data) => setResult(data),
       onError: (error) => {
-        // Form error handling would go here or toast
         console.error(error);
       }
     });
