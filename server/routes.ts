@@ -6,6 +6,7 @@ import { api } from "@shared/routes"; // Use shared/routes for API definition
 import { z } from "zod";
 import axios from "axios";
 import * as cheerio from "cheerio";
+import https from "https";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -30,7 +31,10 @@ export async function registerRoutes(
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; SEOVisualizer/1.0;)'
         },
-        timeout: 10000 // 10s timeout
+        timeout: 10000, // 10s timeout
+        httpsAgent: new https.Agent({  
+          rejectUnauthorized: false
+        })
       });
 
       const html = response.data;

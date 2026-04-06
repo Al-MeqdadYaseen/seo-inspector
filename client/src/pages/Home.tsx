@@ -10,7 +10,7 @@ import { IssueList } from "@/components/results/IssueList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Search, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { Search, ArrowRight, Loader2, Sparkles, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Home() {
