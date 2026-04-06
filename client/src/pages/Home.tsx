@@ -11,32 +11,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import { Search, ArrowRight, Loader2, Sparkles, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const formSchema = z.object({
-  url: z.string().min(1, "Please enter a URL").transform((val) => {
-    val = val.trim();
-    if (!/^https?:\/\//i.test(val)) {
-      return "https://" + val;
-    }
-    return val;
-  }),
+  url: z.string().min(1, "Please enter a URL"),
 });
 
 type FormInput = z.input<typeof formSchema>;
 
-function normalizeUrl(url: string): string {
-  const trimmed = url.trim();
-  if (!/^https?:\/\//i.test(trimmed)) {
-    return "https://" + trimmed;
-  }
-  return trimmed;
+function normalizeUrl(raw: string): string {
+  let url = raw.trim();
+  // Strip any existing protocol including malformed ones (http:\\ https:\\ etc.)
+  url = url.replace(/^[a-zA-Z][a-zA-Z0-9+\-.]*:[\\/]*/i, "");
+  // Remove any leading slashes left over
+  url = url.replace(/^\/+/, "");
+  return "https://" + url;
 }
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const { mutate, isPending } = useAnalyze();
+  const { toast } = useToast();
 
   const form = useForm<FormInput>({
     resolver: zodResolver(formSchema),
@@ -49,7 +46,13 @@ export default function Home() {
     mutate({ url: normalizedUrl }, {
       onSuccess: (data) => setResult(data),
       onError: (error) => {
-        console.error(error);
+        toast({
+          variant: "destructive",
+          title: "Analysis failed",
+          description: error instanceof Error
+            ? error.message
+            : "Could not fetch the URL. Please check it and try again.",
+        });
       }
     });
   };

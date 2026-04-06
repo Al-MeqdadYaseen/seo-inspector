@@ -15,23 +15,39 @@ export async function registerRoutes(
   // Use shared API definitions
   app.post(api.analyze.path, async (req, res) => {
     try {
-      const { url } = api.analyze.input.parse(req.body);
+      const { url } = req.body;
+      if (!url || typeof url !== "string" || url.trim() === "") {
+        return res.status(400).json({ message: "URL is required." });
+      }
 
-      // Validate URL format (ensure http/https)
-      let targetUrl = url;
-      if (!/^https?:\/\//i.test(targetUrl)) {
-        targetUrl = 'https://' + targetUrl;
+      // Normalize URL: strip any existing protocol (including malformed ones) and re-add https://
+      let normalized = url.trim();
+      normalized = normalized.replace(/^[a-zA-Z][a-zA-Z0-9+\-.]*:[\\/]*/i, "");
+      normalized = normalized.replace(/^\/+/, "");
+      const targetUrl = "https://" + normalized;
+
+      // Basic sanity check — must look like a hostname
+      try {
+        const parsed = new URL(targetUrl);
+        if (!parsed.hostname || !parsed.hostname.includes(".")) {
+          return res.status(400).json({ message: "Please enter a valid website URL." });
+        }
+      } catch {
+        return res.status(400).json({ message: "Please enter a valid website URL." });
       }
 
       console.log(`Fetching URL: ${targetUrl}`);
       
-      // Fetch the HTML
-      // Add a User-Agent to avoid being blocked by some sites
+      // Fetch the HTML (limit to 5MB to prevent memory abuse)
       const response = await axios.get(targetUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; SEOVisualizer/1.0;)'
+          'User-Agent': 'Mozilla/5.0 (compatible; SEOVisualizer/1.0; +https://seovision.app)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
         },
-        timeout: 10000, // 10s timeout
+        timeout: 10000,
+        maxContentLength: 5 * 1024 * 1024, // 5MB
+        maxBodyLength: 5 * 1024 * 1024,
         httpsAgent: new https.Agent({  
           rejectUnauthorized: false
         })
@@ -142,11 +158,24 @@ export async function registerRoutes(
       });
 
     } catch (error) {
-      console.error("Analysis error:", error);
       if (axios.isAxiosError(error)) {
-         return res.status(400).json({ message: `Failed to fetch URL: ${error.message}` });
+        const code = (error.cause as any)?.code || error.code;
+        if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+          return res.status(400).json({ message: "Domain not found. Please check the URL and try again." });
+        }
+        if (code === "ECONNREFUSED" || code === "ECONNRESET") {
+          return res.status(400).json({ message: "Connection refused by the server. The site may be down." });
+        }
+        if (code === "ETIMEDOUT" || error.code === "ECONNABORTED") {
+          return res.status(400).json({ message: "Request timed out. The site took too long to respond." });
+        }
+        if (error.response?.status === 403 || error.response?.status === 401) {
+          return res.status(400).json({ message: "The website blocked access. Try a different URL." });
+        }
+        return res.status(400).json({ message: "Could not reach the URL. Please check it and try again." });
       }
-      res.status(500).json({ message: "Internal server error during analysis" });
+      console.error("Analysis error:", error);
+      res.status(500).json({ message: "Something went wrong. Please try again." });
     }
   });
 
