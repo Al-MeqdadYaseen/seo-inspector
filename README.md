@@ -133,7 +133,3 @@ Returns the 10 most recent analyses.
 | `og:description` | Presence |
 | `og:image` | Presence |
 | `twitter:card` | Presence and type |
-
-## License
-
-MIT
